@@ -1,0 +1,25 @@
+[Unit]
+Description=fwall - Simple Linux Firewall
+Documentation=https://github.com/youruser/fwall
+After=network.target
+Before=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# Apply all saved rules on start
+ExecStart=/usr/local/bin/fwall start
+
+# Flush all rules on stop (leaves machine open — safe for maintenance)
+ExecStop=/usr/local/bin/fwall stop
+
+# If fwall crashes, don't restart automatically (avoid lockout loops)
+Restart=no
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fwall
+
+[Install]
+WantedBy=multi-user.target
