@@ -100,13 +100,20 @@ do_flush() {
 }
 
 do_policy() {
-    local policy="${1:-ACCEPT}"
+    local chain="${1:-INPUT}"
+    local policy="${2:-ACCEPT}"
+ 
+    if [[ "$chain" != "INPUT" && "$chain" != "OUTPUT" && "$chain" != "FORWARD" ]]; then
+        echo "[engine] ERROR: chain must be INPUT, OUTPUT, or FORWARD" >&2
+        exit 1
+    fi
     if [[ "$policy" != "ACCEPT" && "$policy" != "DROP" ]]; then
         echo "[engine] ERROR: policy must be ACCEPT or DROP" >&2
         exit 1
     fi
-    log "Setting default INPUT policy to $policy"
-    $IPT -P INPUT "$policy"
+ 
+    log "Setting default $chain policy to $policy"
+    $IPT -P "$chain" "$policy"
 }
 
 do_apply() {
