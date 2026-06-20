@@ -18,7 +18,7 @@ Wraps `iptables` with a clean CLI, persistent rules, systemd integration, and au
 ## Installation
 
 ```bash
-https://github.com/ReZa7392j/fwall.git
+git clone https://github.com/youruser/fwall.git
 cd fwall
 sudo bash installer.sh
 ```
@@ -42,6 +42,7 @@ sudo fwall allow 443/tcp
 
 # 3. Set default policy: block everything else incoming
 sudo fwall default deny
+# (equivalent to: sudo fwall default incoming deny)
 
 # 4. Start the firewall
 sudo fwall start
@@ -90,9 +91,11 @@ sudo fwall allow 443/tcp --direction out
 # Delete a rule by ID (get IDs from status)
 sudo fwall delete 3
 
-# Set default incoming policy
-sudo fwall default deny
-sudo fwall default allow
+# Set default policy (incoming, outgoing, or forwarding)
+sudo fwall default deny                # incoming (scope omitted = incoming)
+sudo fwall default incoming allow
+sudo fwall default outgoing deny
+sudo fwall default forwarding deny
 ```
 
 ### Logging
@@ -122,8 +125,10 @@ sudo fwall log off
 
 ```ini
 [policy]
-default_incoming = deny    # deny | allow
-default_outgoing = allow   # deny | allow
+[policy]
+default_incoming   = deny    # deny | allow  (reference only — use `fwall default` to change)
+default_outgoing   = allow   # deny | allow
+default_forwarding = deny    # deny | allow
 
 [logging]
 enabled = true             # true | false
