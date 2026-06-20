@@ -87,11 +87,18 @@ class Rule:
 
 
 class State:
+    CHAINS = {"incoming": "INPUT", "outgoing": "OUTPUT", "forwarding": "FORWARD"}
+
     def __init__(self):
-        self.d = {"enabled": False, "default_policy": "deny", "rules": []}
+        self.d = {"enabled": False,
+                  "policy": {"incoming": "deny", "outgoing": "allow", "forwarding": "deny"},
+                  "rules": []}
         if RULES_FILE.exists():
             try:
-                self.d = json.loads(RULES_FILE.read_text())
+                loaded = json.loads(RULES_FILE.read_text())
+                self.d.update(loaded)
+                # merge in case an old rules.json only has some keys
+                self.d["policy"] = {**self.d.get("policy", {}), **loaded.get("policy", {})}
             except (json.JSONDecodeError, KeyError):
                 pass
 
@@ -104,10 +111,12 @@ class State:
     @enabled.setter
     def enabled(self, v): self.d["enabled"] = v; self._save()
 
-    @property
-    def default_policy(self): return self.d.get("default_policy", "deny")
-    @default_policy.setter
-    def default_policy(self, v): self.d["default_policy"] = v; self._save()
+    def get_policy(self, scope):
+        return self.d.get("policy", {}).get(scope, "deny")
+
+    def set_policy(self, scope, value):
+        self.d.setdefault("policy", {})[scope] = value
+        self._save()
 
     def get_rules(self): return [Rule.from_dict(r) for r in self.d.get("rules", [])]
 
@@ -145,7 +154,7 @@ class Engine:
             raise RuntimeError(f"engine.sh failed: {result.stderr.strip()}")
 
     def flush(self): self._run("flush")
-    def set_policy(self, policy): self._run("policy", "ACCEPT" if policy == "allow" else "DROP")
+    def set_policy(self, chain, policy): self._run("policy", chain, "ACCEPT" if policy == "allow" else "DROP")
     def apply_rule(self, r): self._run("apply", IPT_ACTION[r.action], r.proto, r.port, r.direction, r.from_ip, r.to_ip)
     def delete_rule(self, r): self._run("delete", IPT_ACTION[r.action], r.proto, r.port, r.direction, r.from_ip, r.to_ip)
     def status(self): self._run("status")
@@ -154,7 +163,8 @@ class Engine:
 
     def apply_all(self, state):
         self.flush()
-        self.set_policy(state.default_policy)
+        for scope, chain in State.CHAINS.items():
+            self.set_policy(chain, state.get_policy(scope))
         for r in state.get_rules():
             self.apply_rule(r)
         self.save()
@@ -167,7 +177,8 @@ def cmd_start(state, engine, log):
         log.info("fwall is already running. Re-applying rules.")
     engine.apply_all(state)
     state.enabled = True
-    log.info(f"fwall started. Default policy: {state.default_policy}. Rules loaded: {len(state.get_rules())}")
+    pol = ", ".join(f"{s}={state.get_policy(s)}" for s in State.CHAINS)
+    log.info(f"fwall started. Policies: {pol}. Rules loaded: {len(state.get_rules())}")
 
 
 def cmd_stop(state, engine, log):
@@ -186,7 +197,8 @@ def cmd_systemctl(action, log):
 
 def cmd_status(state, engine, log):
     print(f"\n  fwall status: {'ACTIVE' if state.enabled else 'INACTIVE'}")
-    print(f"  Default policy: {state.default_policy.upper()}")
+    for scope in State.CHAINS:
+        print(f"  Default {scope}: {state.get_policy(scope).upper()}")
     rules = state.get_rules()
     print(f"  Rules ({len(rules)}):")
     for r in rules:
@@ -231,11 +243,22 @@ def cmd_delete(args, state, engine, log):
 
 
 def cmd_default(args, state, engine, log):
-    state.default_policy = args.policy
+    if args.policy is None:
+        # fwall default deny  →  scope omitted, defaults to incoming
+        scope, policy = "incoming", args.scope_or_policy
+    else:
+        # fwall default outgoing deny
+        scope, policy = args.scope_or_policy, args.policy
+
+    if scope not in State.CHAINS:
+        log.error(f"Invalid scope '{scope}'. Use: incoming, outgoing, forwarding")
+        sys.exit(1)
+
+    state.set_policy(scope, policy)
     if state.enabled:
-        engine.set_policy(args.policy)
+        engine.set_policy(State.CHAINS[scope], policy)
         engine.save()
-    log.info(f"Default incoming policy set to: {args.policy.upper()}")
+    log.info(f"Default {scope} policy set to: {policy.upper()}")
 
 
 def cmd_reset(state, engine, log):
@@ -277,8 +300,10 @@ def build_parser():
     dl = sub.add_parser("delete", help="Delete a rule by id (see fwall status)")
     dl.add_argument("rule_id", type=int, nargs="?")
 
-    df = sub.add_parser("default", help="Set default incoming policy")
-    df.add_argument("policy", choices=["allow", "deny"])
+    df = sub.add_parser("default", help="Set default policy: fwall default [incoming|outgoing|forwarding] <allow|deny>")
+    df.add_argument("scope_or_policy", choices=["incoming", "outgoing", "forwarding", "allow", "deny"],
+                     help="Scope (incoming/outgoing/forwarding) or policy if scope omitted (defaults to incoming)")
+    df.add_argument("policy", nargs="?", choices=["allow", "deny"], default=None)
 
     lg = sub.add_parser("log", help="Toggle logging")
     lg.add_argument("toggle", choices=["on", "off"])
