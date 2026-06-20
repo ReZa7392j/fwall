@@ -18,7 +18,7 @@ Wraps `iptables` with a clean CLI, persistent rules, systemd integration, and au
 ## Installation
 
 ```bash
-git clone https://github.com/youruser/fwall.git
+https://github.com/ReZa7392j/fwall.git
 cd fwall
 sudo bash installer.sh
 ```
