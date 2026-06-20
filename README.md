@@ -164,7 +164,3 @@ fwall/
 ```
 
 ---
-
-## License
-
-MIT
