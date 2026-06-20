@@ -1,6 +1,6 @@
 [Unit]
 Description=fwall - Simple Linux Firewall
-Documentation=https://github.com/youruser/fwall
+Documentation=https://github.com/ReZa7392j/fwall
 After=network.target
 Before=network-online.target
 
