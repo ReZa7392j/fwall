@@ -125,7 +125,6 @@ sudo fwall log off
 
 ```ini
 [policy]
-[policy]
 default_incoming   = deny    # deny | allow  (reference only — use `fwall default` to change)
 default_outgoing   = allow   # deny | allow
 default_forwarding = deny    # deny | allow
